@@ -1,11 +1,26 @@
+Це дуже слушні зауваження. Грати на клавіатурі і стріляти "наосліп" справді незручно.
+
+Ось **Велике Оновлення Геймплею**, яке вирішує всі твої проблеми:
+
+1. **Керування Мишкою (Aiming):** Тепер персонаж **повертається за курсором миші**. Маг стріляє точно туди, куди ти цілишся. Воїн б'є мечем у бік курсора.
+2. **Обличчя:** Додав персонажам "очі", щоб ти бачив, куди вони дивляться.
+3. **Перешкоди (Скелі):** На карті тепер генеруються сірі камені. Крізь них не можна пройти і крізь них не пролітають кулі. Це створює тактику (можна ховатися).
+4. **Захист від "Залипання" (Blur Fix):** Якщо ти звернеш вікно або переключиш вкладку, персонаж миттєво зупиниться, а не побіжить у безкінечність.
+
+### Інструкція:
+
+1. **Очисти базу Firebase** (обов'язково, бо додаються камені `obstacles`).
+2. Заміни код.
+
+```html
 <!DOCTYPE html>
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>RPG IO: Classes & Magic</title>
+    <title>RPG IO: Tactics Update</title>
     <style>
         body { margin: 0; overflow: hidden; background: #050505; font-family: 'Segoe UI', sans-serif; color: white; user-select: none; }
-        canvas { display: block; }
+        canvas { display: block; cursor: crosshair; } /* Курсор-приціл */
 
         /* ЕКРАН ВИБОРУ */
         #startScreen {
@@ -53,42 +68,34 @@
 <body>
 
     <div id="startScreen">
-        <h1>CHOOSE YOUR HERO</h1>
+        <h1>BATTLE IO</h1>
         <input type="text" id="nick" placeholder="Твій Нік" maxlength="12">
         
         <div class="class-container">
             <div class="class-card selected" onclick="selectClass('warrior')" id="card-warrior">
                 <div class="class-icon">⚔️</div>
                 <h3>ВОЇН</h3>
-                <small>Багато HP<br>Ближній бій</small>
+                <small>Живучий<br>Удар по дузі</small>
             </div>
             <div class="class-card" onclick="selectClass('mage')" id="card-mage">
                 <div class="class-icon">🔮</div>
                 <h3>МАГ</h3>
-                <small>Мало HP<br>Фаєрболи</small>
+                <small>Скляна гармата<br>Точна стрільба</small>
             </div>
         </div>
 
-        <button id="playBtn">В БІЙ!</button>
+        <button id="playBtn">ГРАТИ</button>
+        <p style="color:#888; margin-top:10px">WASD - Рух | Мишка - Ціль | ЛКМ/F - Атака</p>
     </div>
 
     <div id="ui-layer">
         <div id="stats">
             <b id="uiName" style="font-size: 18px;">Player</b> <span id="uiClass" style="color:yellow; font-size:12px"></span>
             <div style="font-size: 12px; margin-top: 4px; color: #ccc;">Рівень <span id="uiLvl" style="color:gold">1</span></div>
-            
-            <div class="bar-wrap">
-                <div id="hp-fill" class="bar-val" style="background:#ff3333; width:100%"></div>
-                <div id="hp-text" class="bar-text">100/100</div>
-            </div>
-            <div class="bar-wrap">
-                <div id="xp-fill" class="bar-val" style="background:#3388ff; width:0%"></div>
-                <div id="xp-text" class="bar-text">0%</div>
-            </div>
+            <div class="bar-wrap"><div id="hp-fill" class="bar-val" style="background:#ff3333; width:100%"></div><div id="hp-text" class="bar-text">100/100</div></div>
+            <div class="bar-wrap"><div id="xp-fill" class="bar-val" style="background:#3388ff; width:0%"></div><div id="xp-text" class="bar-text">0%</div></div>
         </div>
-
         <div id="cooldown-bar"><div id="cd-fill"></div></div>
-
         <div id="inventory">
             <div class="slot"><span class="key">1</span><span id="item0"></span></div>
             <div class="slot"><span class="key">2</span><span id="item1"></span></div>
@@ -117,15 +124,16 @@
         const db = getDatabase(app);
         const auth = getAuth(app);
 
-        // --- Глобальні змінні ---
         const canvas = document.getElementById("game");
         const ctx = canvas.getContext("2d");
         
+        // --- Game State ---
         let myId = null;
         let players = {};
-        let food = {};    // Їжа (XP)
-        let chests = {};  // Сундуки (Предмети)
-        let projectiles = {}; // Кулі магів
+        let food = {};
+        let chests = {};
+        let projectiles = {};
+        let obstacles = {}; // Камені
         let selectedClass = 'warrior';
 
         let myData = { 
@@ -136,14 +144,14 @@
 
         let lastAttackTime = 0;
         let keys = {};
-        
-        // Налаштування класів
+        let mouseX = 0, mouseY = 0; // Для прицілювання
+
         const CLASSES = {
-            warrior: { hp: 120, speed: 4, color: '#3498db', cooldown: 600, range: 70 },
-            mage:    { hp: 80,  speed: 4, color: '#9b59b6', cooldown: 1000, range: 400 }
+            warrior: { hp: 150, speed: 4, color: '#3498db', cooldown: 500, range: 90 },
+            mage:    { hp: 90,  speed: 4, color: '#9b59b6', cooldown: 800, range: 600 }
         };
 
-        // --- UI Логіка ---
+        // --- UI ---
         window.selectClass = (cls) => {
             selectedClass = cls;
             document.querySelectorAll('.class-card').forEach(el => el.classList.remove('selected'));
@@ -153,7 +161,6 @@
         window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
         window.dispatchEvent(new Event('resize'));
 
-        // Вхід в гру
         document.getElementById("playBtn").onclick = () => {
             const nick = document.getElementById("nick").value;
             if(!nick) return alert("Введи нік!");
@@ -162,8 +169,9 @@
             myData.class = selectedClass;
             myData.maxHp = CLASSES[selectedClass].hp;
             myData.hp = myData.maxHp;
-            myData.x = (Math.random()-0.5)*2000;
-            myData.y = (Math.random()-0.5)*2000;
+            // Спавн подалі від центру
+            myData.x = (Math.random()-0.5)*1500;
+            myData.y = (Math.random()-0.5)*1500;
 
             document.getElementById("startScreen").style.display = 'none';
             document.getElementById("ui-layer").style.display = 'block';
@@ -179,50 +187,75 @@
                 set(myRef, myData);
                 onDisconnect(myRef).remove();
 
-                // Підписки на дані
                 onValue(ref(db, 'players'), s => players = s.val() || {});
                 onValue(ref(db, 'food'), s => food = s.val() || {});
                 onValue(ref(db, 'chests'), s => chests = s.val() || {});
                 onValue(ref(db, 'projectiles'), s => projectiles = s.val() || {});
+                onValue(ref(db, 'obstacles'), s => obstacles = s.val() || {});
 
-                // Генератор світу (спавнить їжу і сундуки, якщо їх мало)
-                setInterval(() => {
-                    if(Math.random() > 0.5) spawnWorldObjects();
-                }, 1000);
-
+                setInterval(() => { if(Math.random() > 0.5) spawnWorldObjects(); }, 1000);
                 gameLoop();
             });
         }
 
         function spawnWorldObjects() {
-            // Спавн ЇЖІ (часто)
-            if(Object.keys(food).length < 50) {
-                push(ref(db, 'food'), { x: (Math.random()-0.5)*3000, y: (Math.random()-0.5)*3000 });
-            }
-            // Спавн СУНДУКІВ (рідко)
-            if(Object.keys(chests).length < 15 && Math.random() > 0.8) {
-                push(ref(db, 'chests'), { x: (Math.random()-0.5)*3000, y: (Math.random()-0.5)*3000 });
+            // Ліміти об'єктів
+            if(Object.keys(food).length < 60) push(ref(db, 'food'), { x: (Math.random()-0.5)*3000, y: (Math.random()-0.5)*3000 });
+            if(Object.keys(chests).length < 20 && Math.random()>0.8) push(ref(db, 'chests'), { x: (Math.random()-0.5)*3000, y: (Math.random()-0.5)*3000 });
+            
+            // Генерація перешкод (Камені), якщо їх мало
+            if(Object.keys(obstacles).length < 30) {
+                push(ref(db, 'obstacles'), { 
+                    x: (Math.random()-0.5)*2800, 
+                    y: (Math.random()-0.5)*2800,
+                    w: 60 + Math.random()*100, // Випадковий розмір
+                    h: 60 + Math.random()*100
+                });
             }
         }
 
-        // --- Управління ---
+        // --- Controls ---
         window.addEventListener('keydown', e => {
             keys[e.code] = true;
             if(['Digit1','Digit2','Digit3'].includes(e.code)) useItem(parseInt(e.code.slice(-1))-1);
+            if(e.code === 'KeyF') tryAttack(); // Атака клавішою F
         });
+        
         window.addEventListener('keyup', e => keys[e.code] = false);
+        
+        // Фікс залипання клавіш (якщо згорнули вікно)
+        window.addEventListener('blur', () => { keys = {}; });
+
+        // Мишка
+        window.addEventListener('mousemove', e => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        window.addEventListener('mousedown', () => tryAttack()); // Атака мишкою
 
         function useItem(idx) {
             const item = myData.inv[idx];
             if(!item) return;
-            
             if(item === '💊') myData.hp = Math.min(myData.maxHp, myData.hp + 50);
             if(item === '⚡') { myData.speedBuff = 2; setTimeout(() => myData.speedBuff = 1, 4000); }
-            
             myData.inv[idx] = null;
         }
 
-        // --- ГОЛОВНИЙ ЦИКЛ ---
+        // --- Logic ---
+        function checkCollision(x, y) {
+            // Перевірка зіткнення з камінням
+            const size = 20; // Радіус гравця
+            for(let key in obstacles) {
+                const obs = obstacles[key];
+                // Проста перевірка прямокутників
+                if (x + size > obs.x && x - size < obs.x + obs.w &&
+                    y + size > obs.y && y - size < obs.y + obs.h) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         function gameLoop() {
             if(myId) updateGame();
             draw();
@@ -230,122 +263,117 @@
         }
 
         function updateGame() {
-            // 1. Рух
+            // 1. Поворот за мишкою
+            // Центр екрану = гравець
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            myData.angle = Math.atan2(mouseY - centerY, mouseX - centerX);
+
+            // 2. Рух з колізією
             const speed = CLASSES[myData.class].speed * myData.speedBuff * (keys['ShiftLeft'] ? 1.5 : 1);
-            if(keys['KeyW']) myData.y -= speed;
-            if(keys['KeyS']) myData.y += speed;
-            if(keys['KeyA']) myData.x -= speed;
-            if(keys['KeyD']) myData.x += speed;
+            let dx = 0, dy = 0;
+            if(keys['KeyW']) dy -= speed;
+            if(keys['KeyS']) dy += speed;
+            if(keys['KeyA']) dx -= speed;
+            if(keys['KeyD']) dx += speed;
 
-            // 2. Атака (тільки якщо пройшов Cooldown)
-            const now = Date.now();
-            const cdTime = CLASSES[myData.class].cooldown;
-            
-            // Візуалізація CD
-            const timePassed = now - lastAttackTime;
-            const cdPercent = Math.min(100, (timePassed / cdTime) * 100);
-            document.getElementById('cd-fill').style.width = cdPercent + "%";
+            // Рухаємо по X, перевіряємо стіну
+            if(!checkCollision(myData.x + dx, myData.y)) myData.x += dx;
+            // Рухаємо по Y, перевіряємо стіну
+            if(!checkCollision(myData.x, myData.y + dy)) myData.y += dy;
 
-            if(keys['KeyF'] && timePassed >= cdTime) {
-                lastAttackTime = now;
-                performAttack();
-            }
-
-            // 3. Збір їжі (XP)
+            // 3. Збір
             Object.keys(food).forEach(fid => {
-                const f = food[fid];
-                if(Math.hypot(myData.x - f.x, myData.y - f.y) < 40) {
+                if(Math.hypot(myData.x - food[fid].x, myData.y - food[fid].y) < 40) {
                     remove(ref(db, `food/${fid}`));
                     myData.xp += 10;
-                    myData.hp = Math.min(myData.maxHp, myData.hp + 5); // Їжа лікує
+                    myData.hp = Math.min(myData.maxHp, myData.hp + 5);
                     checkLevelUp();
                 }
             });
-
-            // 4. Збір сундуків (Предмети)
             Object.keys(chests).forEach(cid => {
-                const c = chests[cid];
-                if(Math.hypot(myData.x - c.x, myData.y - c.y) < 50) {
+                if(Math.hypot(myData.x - chests[cid].x, myData.y - chests[cid].y) < 50) {
                     remove(ref(db, `chests/${cid}`));
                     myData.xp += 50;
                     checkLevelUp();
-                    // Додаємо предмет
-                    for(let i=0; i<3; i++) {
-                        if(!myData.inv[i]) { myData.inv[i] = Math.random()>0.5 ? '💊' : '⚡'; break; }
-                    }
+                    for(let i=0; i<3; i++) if(!myData.inv[i]) { myData.inv[i] = Math.random()>0.5 ? '💊' : '⚡'; break; }
                 }
             });
 
-            // 5. Оновлення куль (якщо я Маг і стріляв)
-            // Кожен клієнт обраховує тільки свої кулі? Ні, тут простіше: 
-            // кожен обраховує зіткнення з СОБОЮ від чужих куль.
-            
-            // Перевірка: чи влучили в МЕНЕ
+            // 4. Кулі (Projectiles)
             Object.keys(projectiles).forEach(pid => {
                 const proj = projectiles[pid];
-                if(proj.owner !== myId) { // Чужа куля
+                
+                // Перевірка зіткнення з камінням (куля зникає)
+                // Але щоб не навантажувати, перевіряємо тільки "свої" кулі або коли малюємо
+                // Тут перевірка: чи влучили в мене
+                if(proj.owner !== myId) {
                     if(Math.hypot(myData.x - proj.x, myData.y - proj.y) < 30) {
-                        // Попали в мене!
                         myData.hp -= 15;
-                        remove(ref(db, `projectiles/${pid}`)); // Знищити кулю
+                        remove(ref(db, `projectiles/${pid}`));
                     }
                 }
-                // Видалення старих куль
-                if(Date.now() - proj.created > 2000) {
-                    remove(ref(db, `projectiles/${pid}`));
+                
+                // Перевірка кулі об стіну (якщо я власник, я видаляю)
+                if(proj.owner === myId) {
+                    if(checkCollision(proj.x, proj.y)) remove(ref(db, `projectiles/${pid}`));
+                    if(Date.now() - proj.created > 2000) remove(ref(db, `projectiles/${pid}`));
                 }
             });
 
-            // 6. Смерть
             if(myData.hp <= 0) {
                 myData.hp = myData.maxHp;
-                myData.x = (Math.random()-0.5)*2000;
-                myData.y = (Math.random()-0.5)*2000;
+                myData.x = (Math.random()-0.5)*1500;
+                myData.y = (Math.random()-0.5)*1500;
                 myData.inv = [null,null,null];
-                alert("Game Over!");
             }
 
-            // Синхронізація
+            // Sync
             update(ref(db, `players/${myId}`), myData);
+            
+            // UI Update
+            const cdTime = CLASSES[myData.class].cooldown;
+            const timePassed = Date.now() - lastAttackTime;
+            document.getElementById('cd-fill').style.width = Math.min(100, (timePassed/cdTime)*100) + "%";
             updateUI();
         }
 
         function checkLevelUp() {
             if(myData.xp >= myData.lvl * 100) {
-                myData.xp = 0;
-                myData.lvl++;
-                myData.maxHp += 20;
-                myData.hp = myData.maxHp;
+                myData.xp = 0; myData.lvl++; myData.maxHp += 20; myData.hp = myData.maxHp;
             }
         }
 
-        function performAttack() {
+        function tryAttack() {
+            const now = Date.now();
+            const cdTime = CLASSES[myData.class].cooldown;
+            if(now - lastAttackTime < cdTime) return; // Ще перезарядка
+            
+            lastAttackTime = now;
+            
             if(myData.class === 'warrior') {
-                // Воїн: Б'є всіх навколо
+                // Воїн б'є в секторі перед собою
                 Object.keys(players).forEach(pid => {
                     if(pid === myId) return;
                     const p = players[pid];
-                    if(Math.hypot(myData.x - p.x, myData.y - p.y) < 80) {
-                        update(ref(db, `players/${pid}`), { hp: (p.hp||100) - 20 });
+                    const dist = Math.hypot(myData.x - p.x, myData.y - p.y);
+                    
+                    if(dist < 90) {
+                        // Чи ворог перед нами? (Кут)
+                        const angleToEnemy = Math.atan2(p.y - myData.y, p.x - myData.x);
+                        const angleDiff = Math.abs(angleToEnemy - myData.angle);
+                        // Допускаємо кут удару ~90 градусів (PI/2)
+                        if(angleDiff < Math.PI/2 || angleDiff > Math.PI*1.5) {
+                            update(ref(db, `players/${pid}`), { hp: (p.hp||100) - 25 });
+                        }
                     }
                 });
             } else {
-                // Маг: Створює фаєрбол
-                // Визначаємо напрямок (куди дивився останній раз при русі або просто вправо, якщо стоїть)
-                // Для простоти: стріляємо в бік руху або до центру екрану.
-                // Покращення: стріляємо за мишкою? 
-                // Давай просто: стріляє в випадковий бік, якщо не рухається - це складно без мишки.
-                // Зробимо краще: Стріляє в бік останнього руху (myData.angle треба зберігати)
-                
-                // Щоб спростити: Маг стріляє туди, куди йшов. Якщо стояв - вправо.
-                let dirX = 1, dirY = 0;
-                if(keys['KeyA']) dirX = -1;
-                if(keys['KeyW']) { dirY = -1; dirX = 0; }
-                if(keys['KeyS']) { dirY = 1; dirX = 0; }
-                
+                // Маг стріляє точно за кутом
                 push(ref(db, 'projectiles'), {
                     x: myData.x, y: myData.y,
-                    vx: dirX * 10, vy: dirY * 10,
+                    vx: Math.cos(myData.angle) * 12,
+                    vy: Math.sin(myData.angle) * 12,
                     owner: myId,
                     created: Date.now()
                 });
@@ -356,17 +384,12 @@
             document.getElementById("uiName").innerText = myData.name;
             document.getElementById("uiClass").innerText = myData.class.toUpperCase();
             document.getElementById("uiLvl").innerText = myData.lvl;
-            
-            // HP
             const hpP = Math.max(0, (myData.hp / myData.maxHp) * 100);
             document.getElementById("hp-fill").style.width = hpP + "%";
-            document.getElementById("hp-text").innerText = `${Math.floor(myData.hp)} / ${myData.maxHp} (${Math.floor(hpP)}%)`;
-
-            // XP
+            document.getElementById("hp-text").innerText = `${Math.floor(myData.hp)}/${myData.maxHp}`;
             const xpP = (myData.xp / (myData.lvl*100)) * 100;
             document.getElementById("xp-fill").style.width = xpP + "%";
             document.getElementById("xp-text").innerText = `${Math.floor(xpP)}%`;
-
             for(let i=0; i<3; i++) document.getElementById(`item${i}`).innerText = myData.inv[i] || "";
         }
 
@@ -377,10 +400,11 @@
 
             const camX = canvas.width/2 - myData.x;
             const camY = canvas.height/2 - myData.y;
+            
             ctx.save();
             ctx.translate(camX, camY);
 
-            // Сітка
+            // Grid
             ctx.strokeStyle = "#222"; ctx.lineWidth = 2; ctx.beginPath();
             const startX = Math.floor((myData.x-canvas.width/2)/100)*100;
             const endX = startX + canvas.width + 200;
@@ -390,26 +414,33 @@
             for(let y=startY; y<=endY; y+=100) { ctx.moveTo(startX,y); ctx.lineTo(endX,y); }
             ctx.stroke();
 
-            // Їжа (Зелені крапки)
-            Object.values(food).forEach(f => {
-                ctx.fillStyle = "#2ecc71";
-                ctx.beginPath(); ctx.arc(f.x, f.y, 8, 0, Math.PI*2); ctx.fill();
+            // Перешкоди (Камені)
+            ctx.fillStyle = "#555"; 
+            ctx.strokeStyle = "#333";
+            ctx.lineWidth = 4;
+            Object.values(obstacles).forEach(o => {
+                ctx.fillRect(o.x, o.y, o.w, o.h);
+                ctx.strokeRect(o.x, o.y, o.w, o.h);
             });
 
-            // Сундуки (Золоті квадрати)
+            // Loot
+            Object.values(food).forEach(f => {
+                ctx.fillStyle = "#2ecc71"; ctx.beginPath(); ctx.arc(f.x, f.y, 8, 0, Math.PI*2); ctx.fill();
+            });
             Object.values(chests).forEach(c => {
                 ctx.fillStyle = "#f1c40f"; ctx.shadowBlur=10; ctx.shadowColor="gold";
                 ctx.fillRect(c.x-15, c.y-15, 30, 30); ctx.shadowBlur=0;
             });
 
-            // Кулі (Фаєрболи)
+            // Projectiles
             Object.values(projectiles).forEach(p => {
-                // Локальна анімація руху для плавності (трохи хак, але працює)
                 p.x += p.vx; p.y += p.vy; 
                 ctx.fillStyle = "#e74c3c"; ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI*2); ctx.fill();
+                // Хвіст
+                ctx.fillStyle = "rgba(231, 76, 60, 0.3)"; ctx.beginPath(); ctx.arc(p.x - p.vx*2, p.y - p.vy*2, 8, 0, Math.PI*2); ctx.fill();
             });
 
-            // Гравці
+            // Players
             Object.keys(players).forEach(pid => {
                 const p = players[pid];
                 if(!p || typeof p.x !== 'number') return;
@@ -420,33 +451,78 @@
 
                 ctx.save();
                 ctx.translate(p.x, p.y);
-
+                
                 // Нік
                 ctx.fillStyle = "white"; ctx.font="12px Arial"; ctx.textAlign="center";
                 ctx.fillText(`LVL ${p.lvl} ${p.name}`, 0, -size/2 - 20);
-
-                // HP Bar
+                
+                // HP
                 ctx.fillStyle = "red"; ctx.fillRect(-20, -size/2 - 15, 40, 4);
                 ctx.fillStyle = "#0f0"; ctx.fillRect(-20, -size/2 - 15, 40 * ((p.hp||100)/(p.maxHp||100)), 4);
 
+                // Поворот тіла
+                ctx.rotate(p.angle || 0);
+
+                // Анімація удару воїна
+                if(p.class === 'warrior' && isMe && Date.now() - lastAttackTime < 150) {
+                     ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                     ctx.beginPath();
+                     ctx.arc(0, 0, 70, -Math.PI/3, Math.PI/3); // Сектор удару
+                     ctx.fill();
+                }
+
                 // Тіло
                 ctx.fillStyle = cls.color;
-                if(isMe && keys['KeyF'] && Date.now() - lastAttackTime < 200) {
-                     // Анімація удару (збільшення)
-                     ctx.fillStyle = "white";
-                }
-                ctx.beginPath(); ctx.roundRect(-size/2, -size/2, size, size, 8); ctx.fill();
+                ctx.beginPath();
+                ctx.roundRect(-size/2, -size/2, size, size, 8);
+                ctx.fill();
 
-                // Якщо воїн б'є - малюємо коло удару
-                if(p.class === 'warrior' && isMe && keys['KeyF'] && Date.now() - lastAttackTime < 200) {
-                    ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 5;
-                    ctx.beginPath(); ctx.arc(0, 0, 80, 0, Math.PI*2); ctx.stroke();
+                // ОЧІ (щоб бачити напрямок)
+                ctx.fillStyle = "white";
+                // Ліве око
+                ctx.beginPath(); ctx.arc(size/4, -size/4, 4, 0, Math.PI*2); ctx.fill();
+                // Праве око
+                ctx.beginPath(); ctx.arc(size/4, size/4, 4, 0, Math.PI*2); ctx.fill();
+                // Зіниці
+                ctx.fillStyle = "black";
+                ctx.beginPath(); ctx.arc(size/4 + 2, -size/4, 2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(size/4 + 2, size/4, 2, 0, Math.PI*2); ctx.fill();
+
+                // Руки для мага
+                if(p.class === 'mage') {
+                    ctx.fillStyle = cls.color;
+                    ctx.beginPath(); ctx.arc(10, -20, 6, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(10, 20, 6, 0, Math.PI*2); ctx.fill();
                 }
 
                 ctx.restore();
             });
 
             ctx.restore();
+            drawCompass();
+        }
+
+        function drawCompass() {
+            let nearest = null; let minDst = Infinity;
+            Object.keys(players).forEach(pid => {
+                if (pid === myId) return;
+                const d = Math.hypot(players[pid].x - myData.x, players[pid].y - myData.y);
+                if (d < minDst) { minDst = d; nearest = players[pid]; }
+            });
+
+            if (nearest) {
+                const angle = Math.atan2(nearest.y - myData.y, nearest.x - myData.x);
+                ctx.save();
+                ctx.translate(canvas.width/2, canvas.height/2);
+                ctx.rotate(angle);
+                ctx.translate(100, 0); 
+                ctx.fillStyle = "rgba(255, 100, 100, 0.8)";
+                ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-10, 10); ctx.lineTo(-10, -10); ctx.fill();
+                ctx.rotate(-angle);
+                ctx.fillStyle = "white"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
+                ctx.fillText(Math.round(minDst) + "m", 0, 25);
+                ctx.restore();
+            }
         }
     </script>
 </body>
