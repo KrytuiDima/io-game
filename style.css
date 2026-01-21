@@ -1,0 +1,313 @@
+/* --- ОСНОВНІ НАЛАШТУВАННЯ --- */
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Забороняємо прокрутку */
+    background: #080808;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: white;
+    user-select: none; /* Щоб текст не виділявся при грі */
+}
+
+canvas {
+    display: block;
+}
+
+/* --- ЕКРАН ПРИВІТАННЯ (МЕНЮ) --- */
+#startScreen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #1f252e 0%, #000000 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+h1 {
+    font-size: 64px;
+    color: #fff;
+    text-shadow: 0 0 25px rgba(0, 255, 136, 0.6);
+    margin: 0 0 10px 0;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    font-weight: 800;
+}
+
+.hint {
+    color: #888;
+    margin-bottom: 40px;
+    font-size: 14px;
+    letter-spacing: 1px;
+    opacity: 0.8;
+}
+
+/* --- СІТКА КЛАСІВ --- */
+.class-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    max-width: 900px;
+    margin-bottom: 40px;
+}
+
+.class-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #333;
+    padding: 15px;
+    border-radius: 12px;
+    cursor: pointer;
+    width: 100px;
+    text-align: center;
+    transition: all 0.2s ease;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.class-card:hover {
+    background: #222;
+    transform: translateY(-5px);
+    border-color: #666;
+    box-shadow: 0 8px 15px rgba(0,0,0,0.5);
+}
+
+.class-card.selected {
+    border-color: #00ff88;
+    background: rgba(0, 255, 136, 0.1);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+}
+
+.class-card .icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.class-card b {
+    display: block;
+    font-size: 14px;
+    color: #eee;
+}
+
+/* --- ПОЛЯ ВВОДУ ТА КНОПКИ --- */
+input#nick {
+    padding: 15px;
+    font-size: 18px;
+    background: #111;
+    border: 1px solid #444;
+    color: white;
+    text-align: center;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    width: 250px;
+    outline: none;
+    transition: border 0.2s;
+}
+
+input#nick:focus {
+    border-color: #00ff88;
+}
+
+#playBtn {
+    padding: 15px 70px;
+    font-size: 20px;
+    font-weight: bold;
+    background: #00ff88;
+    border: none;
+    border-radius: 50px;
+    color: #080808;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#playBtn:hover {
+    transform: scale(1.05);
+    background: #fff;
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+}
+
+/* --- МОДАЛЬНЕ ВІКНО ІНФОРМАЦІЇ (ПКМ) --- */
+#infoModal {
+    display: none; /* Приховано за замовчуванням */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 320px;
+    background: rgba(15, 15, 15, 0.95);
+    border: 1px solid #00ff88;
+    border-radius: 16px;
+    padding: 25px;
+    z-index: 200;
+    box-shadow: 0 0 100px rgba(0,0,0,0.9);
+    backdrop-filter: blur(5px);
+}
+
+#info-title {
+    font-size: 26px;
+    color: #00ff88;
+    margin-bottom: 15px;
+    font-weight: bold;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+#info-canvas {
+    width: 100%;
+    height: 180px;
+    background: #1a1a1a;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    display: block;
+}
+
+#info-desc {
+    color: #ccc;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    text-align: center;
+    background: rgba(255,255,255,0.05);
+    padding: 10px;
+    border-radius: 6px;
+}
+
+#info-stats {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 10px;
+}
+
+.stat-tag {
+    background: #333;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #fff;
+    border: 1px solid #444;
+}
+
+#closeInfo {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    cursor: pointer;
+    color: #666;
+    font-size: 24px;
+    transition: color 0.2s;
+}
+
+#closeInfo:hover {
+    color: #fff;
+}
+
+/* --- HUD (В ГРІ) --- */
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Кліки проходять крізь інтерфейс */
+    display: none;
+}
+
+/* Статистика зліва знизу */
+#hud-stats {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    width: 300px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    border-left: 4px solid #00ff88;
+    border-radius: 0 10px 10px 0;
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
+}
+
+#ui-name {
+    font-size: 18px;
+    color: white;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.stat-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.stat-row:last-child {
+    margin-bottom: 0;
+}
+
+.l {
+    width: 30px;
+    font-weight: bold;
+    font-size: 12px;
+    text-shadow: 1px 1px 0 #000;
+}
+
+.bar-bg {
+    flex-grow: 1;
+    height: 12px;
+    background: #222;
+    position: relative;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid #333;
+}
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.2s ease-out; /* Плавна анімація зміни ХП */
+}
+
+.bar-txt {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    text-shadow: 1px 1px 1px #000;
+    z-index: 2;
+}
+
+/* --- МІНІ-КАРТА --- */
+#minimap-container {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    width: 180px;
+    height: 180px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 3px solid #444;
+    border-radius: 50%; /* Кругла карта */
+    overflow: hidden;
+    box-shadow: 0 0 25px rgba(0,0,0,0.8);
+    opacity: 0.9;
+}
+
+#minimap {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
